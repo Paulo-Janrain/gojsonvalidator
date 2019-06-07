@@ -1,5 +1,8 @@
 package prelude
 
+//go:generate go run genmin.go
+
+// Prelude is the GopherJS JavaScript interop layer.
 const Prelude = prelude + numeric + types + goroutines + jsmapping
 
 const prelude = `Error.stackTraceLimit = Infinity;
@@ -30,6 +33,7 @@ var $throwRuntimeError; /* set by package "runtime" */
 var $throwNilPointerError = function() { $throwRuntimeError("invalid memory address or nil pointer dereference"); };
 var $call = function(fn, rcvr, args) { return fn.apply(rcvr, args); };
 var $makeFunc = function(fn) { return function() { return $externalize(fn(this, new ($sliceType($jsObjectPtr))($global.Array.prototype.slice.call(arguments, []))), $emptyInterface); }; };
+var $unused = function(v) {};
 
 var $mapArray = function(array, f) {
   var newArray = new array.constructor(array.length);
@@ -94,19 +98,22 @@ var $ifaceMethodExpr = function(name) {
 };
 
 var $subslice = function(slice, low, high, max) {
+  if (high === undefined) {
+    high = slice.$length;
+  }
+  if (max === undefined) {
+    max = slice.$capacity;
+  }
   if (low < 0 || high < low || max < high || high > slice.$capacity || max > slice.$capacity) {
     $throwRuntimeError("slice bounds out of range");
   }
+  if (slice === slice.constructor.nil) {
+    return slice;
+  }
   var s = new slice.constructor(slice.$array);
   s.$offset = slice.$offset + low;
-  s.$length = slice.$length - low;
-  s.$capacity = slice.$capacity - low;
-  if (high !== undefined) {
-    s.$length = high - low;
-  }
-  if (max !== undefined) {
-    s.$capacity = max - low;
-  }
+  s.$length = high - low;
+  s.$capacity = max - low;
   return s;
 };
 
@@ -118,9 +125,6 @@ var $substring = function(str, low, high) {
 };
 
 var $sliceToArray = function(slice) {
-  if (slice.$length === 0) {
-    return [];
-  }
   if (slice.$array.constructor !== Array) {
     return slice.$array.subarray(slice.$offset, slice.$offset + slice.$length);
   }
