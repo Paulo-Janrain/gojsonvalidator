@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"flag"
 	"os"
@@ -39,6 +40,17 @@ func (d*Documents) Set(value string) error {
 	*d = append(*d,gojsonschema.NewReferenceLoader("file://"+absolutePath))
 	return nil
 }
+
+func loadSchema(loader gojsonschema.JSONLoader) (s *gojsonschema.Schema, e error) {
+	defer func() {
+		if err := recover(); err != nil {
+			s = nil
+			e = errors.New("File could not be decoded as JSON Schema")
+		}
+	}()
+	return gojsonschema.NewSchema(loader)
+}
+
 var documents Documents
 
 func main() {
@@ -51,7 +63,7 @@ func main() {
 	}
 
 	rawSchema := gojsonschema.NewReferenceLoader("file://"+absSchemaFile)
-	schema,err := gojsonschema.NewSchema(rawSchema)
+	schema, err := loadSchema(rawSchema)
 
 	if err != nil {
 		fmt.Fprintln(os.Stderr,"An error occured while passing the following schema file: "+schemaFile)
