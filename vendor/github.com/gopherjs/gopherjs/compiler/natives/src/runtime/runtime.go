@@ -17,9 +17,13 @@ type eface struct {
 	_type *_type
 }
 type _type struct {
+	str string
 }
 
 func (t *_type) string() string {
+	return t.str
+}
+func (t *_type) pkgpath() string {
 	return ""
 }
 
@@ -27,9 +31,7 @@ func init() {
 	jsPkg := js.Global.Get("$packages").Get("github.com/gopherjs/gopherjs/js")
 	js.Global.Set("$jsObjectPtr", jsPkg.Get("Object").Get("ptr"))
 	js.Global.Set("$jsErrorPtr", jsPkg.Get("Error").Get("ptr"))
-	js.Global.Set("$throwRuntimeError", js.InternalObject(func(msg string) {
-		panic(errorString(msg))
-	}))
+	js.Global.Set("$throwRuntimeError", js.InternalObject(throw))
 	// avoid dead code elimination
 	var e error
 	e = &TypeAssertionError{}
@@ -45,7 +47,9 @@ func GOROOT() string {
 	if goroot != js.Undefined {
 		return goroot.String()
 	}
-	return sys.DefaultGoroot
+	// sys.DefaultGoroot is now gone, can't use it as fallback anymore.
+	// TODO: See if a better solution is needed.
+	return "/usr/local/go"
 }
 
 func Breakpoint() {
@@ -65,6 +69,23 @@ func Callers(skip int, pc []uintptr) int {
 	return 0
 }
 
+// CallersFrames is not implemented for GOARCH=js.
+// TODO: Implement if possible.
+func CallersFrames(callers []uintptr) *Frames { return &Frames{} }
+
+type Frames struct{}
+
+func (ci *Frames) Next() (frame Frame, more bool) { return }
+
+type Frame struct {
+	PC       uintptr
+	Func     *Func
+	Function string
+	File     string
+	Line     int
+	Entry    uintptr
+}
+
 func GC() {
 }
 
@@ -79,7 +100,7 @@ func GOMAXPROCS(n int) int {
 
 func Gosched() {
 	c := make(chan struct{})
-	js.Global.Call("setTimeout", func() { close(c) }, 0)
+	js.Global.Call("$setTimeout", js.InternalObject(func() { close(c) }), 0)
 	<-c
 }
 
@@ -164,6 +185,11 @@ var MemProfileRate int = 512 * 1024
 func SetBlockProfileRate(rate int) {
 }
 
+func SetMutexProfileFraction(rate int) int {
+	// TODO: Investigate this. If it's possible to implement, consider doing so, otherwise remove this comment.
+	return 0
+}
+
 func Stack(buf []byte, all bool) int {
 	s := js.Global.Get("Error").New().Get("stack")
 	if s == js.Undefined {
@@ -194,3 +220,15 @@ func efaceOf(ep *interface{}) *eface {
 }
 
 func KeepAlive(interface{}) {}
+
+func throw(s string) {
+	panic(errorString(s))
+}
+
+// These are used by panicwrap. Not implemented for GOARCH=js.
+// TODO: Implement if possible.
+func getcallerpc() uintptr         { return 0 }
+func findfunc(pc uintptr) funcInfo { return funcInfo{} }
+func funcname(f funcInfo) string   { return "" }
+
+type funcInfo struct{}
